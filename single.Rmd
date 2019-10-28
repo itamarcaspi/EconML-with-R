@@ -1,5 +1,6 @@
 ---
-title: "Example Usage with Single Continuous Treatment Observational Data"
+title: "EconML with R"
+subtitle: "Example Usage with Single Continuous Treatment Observational Data"
 author:
 - "Itamar Caspi"
 date: "`r Sys.Date()`"
@@ -11,7 +12,7 @@ output:
     toc_depth: 4
     toc_float: yes
 abstract: |
-  TBA
+  [`EconML`](https://github.com/microsoft/EconML) is a Python package for estimating heterogeneous treatment effects from observational data via machine learning. In this note you I show how to call EconML from R using the [`reticulate`](https://rstudio.github.io/reticulate/index.html) package. To this end, I reproduce an example for usage with single continuous treatment observational data that appear in the ["Double Machine Learning: Use Cases and Examples"](https://github.com/microsoft/EconML/blob/master/notebooks/Double%20Machine%20Learning%20Examples.ipynb) EconML notebook.
 ---
 
 ```{r setup, include=FALSE}
@@ -23,11 +24,15 @@ knitr::opts_chunk$set(eval = TRUE,
 
 ```
 
+## Introction
 
->> We applied our technique to Dominick’s dataset, a popular historical dataset of store-level orange juice prices and sales provided by University of Chicago Booth School of Business. The dataset is comprised of a large number of covariates $W$, but researchers might only be interested in learning the elasticity of demand as a function of a few variables $x$ such as income or education. We applied the DMLCateEstimator to estimate orange juice price elasticity as a function of income, and our results, unveil the natural phenomenon that lower income consumers are more price-sensitive.
+An excerpt from ["Double Machine Learning: Use Cases and Examples"](https://github.com/microsoft/EconML/blob/master/notebooks/Double%20Machine%20Learning%20Examples.ipynb) EconML notebook: 
+
+>_"We applied our technique to Dominick’s dataset, a popular historical dataset of store-level orange juice prices and sales provided by University of Chicago Booth School of Business. The dataset is comprised of a large number of covariates $W$, but researchers might only be interested in learning the elasticity of demand as a function of a few variables $x$ such as income or education. We applied the DMLCateEstimator to estimate orange juice price elasticity as a function of income, and our results, unveil the natural phenomenon that lower income consumers are more price-sensitive."_
 
 ## Packages
 
+Load `reticulate and set up a virtual Python environment
 ```{r}
 
 library(reticulate)
@@ -35,18 +40,19 @@ use_virtualenv("myenv")
 
 ```
 
-
+Load other requierd packages
 ```{r}
 
-library(tidymodels)
-library(tidyverse)
-library(here)
+library(tidyverse) # for data wrangling and visualization
+library(recipes)   # for data preprocessing
+library(here)      # for file referencing
 
 ```
 
 
 ## Data
 
+Load the orange juice dataset
 ```{r}
 
 # Read from file
@@ -60,7 +66,7 @@ head(oj_raw)
 ```
 
 
-# Preprocessing
+## Preprocessing
 
 ```{r}
 
@@ -74,6 +80,8 @@ oj_rec <- recipe(logmove ~ ., data = oj_raw) %>%
   step_log(price) %>% 
   prep() %>% 
   juice()
+
+head(oj_rec)
 
 ```
 
@@ -101,7 +109,7 @@ W <- oj_rec %>%
   unname()
 ```
 
-Generate testdata
+Generate test data
 ```{r}
 
 min_income <- -1
@@ -114,7 +122,7 @@ X_test <- seq(max_income, min_income, -delta) %>%
 ```
 
 
-# Estimate effect
+## Estimate CATE
 
 ```{python}
 
@@ -134,7 +142,7 @@ te_pred = est.effect(r.X_test)
 
 ```
 
-Plot oranje Juice elasticity as a function of income
+Plot orange Juice elasticity as a function of income
 ```{r}
 
 cate_effect <- tibble("X_test" = X_test, "te_pred" = py$te_pred)
@@ -142,9 +150,11 @@ cate_effect <- tibble("X_test" = X_test, "te_pred" = py$te_pred)
 cate_effect %>% 
   ggplot(aes(X_test, te_pred)) +
   geom_line() +
-  labs(x = "Scale(Income)",
-       y = "Orange Juice Elasticity",
-       title = "Orange Juice Elasticity vs Income")
+  labs(
+    x = "Scale(Income)",
+    y = "Orange Juice Elasticity",
+    title = "Orange Juice Elasticity vs Income"
+  )
 
 ```
 
@@ -190,9 +200,11 @@ cate_effect_interval %>%
   geom_ribbon(aes(ymin = te_pred_down, ymax = te_pred_up),
               fill = "grey70") +
   geom_line() +
-  labs(x = "Scale(Income)",
-       y = "Orange Juice Elasticity",
-       title = "Orange Juice Elasticity vs Income",
-       fill  = "1-99% CI")
+  labs(
+    x = "Scale(Income)",
+    y = "Orange Juice Elasticity",
+    title = "Orange Juice Elasticity vs Income",
+    fill  = "1-99% CI"
+  )
 
 ```

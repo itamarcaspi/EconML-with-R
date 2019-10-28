@@ -1,5 +1,6 @@
 ---
-title: "Example Usage with Multiple Continuous Treatment, Multiple Outcome Observational Data"
+title: "EconML with R"
+subtitle: "Example Usage with Multiple Continuous Treatment, Multiple Outcome Observational Data"
 author:
 - "Itamar Caspi"
 date: "`r Sys.Date()`"
@@ -11,7 +12,7 @@ output:
     toc_depth: 4
     toc_float: yes
 abstract: |
-  TBA
+  [`EconML`](https://github.com/microsoft/EconML) is a Python package for estimating heterogeneous treatment effects from observational data via machine learning. In this note you I show how to call EconML from R using the [`reticulate`](https://rstudio.github.io/reticulate/index.html) package. To this end, I reproduce an example for usage with multiple continuous treatment and multiple outcomes observational data that appear in the ["Double Machine Learning: Use Cases and Examples"](https://github.com/microsoft/EconML/blob/master/notebooks/Double%20Machine%20Learning%20Examples.ipynb) EconML notebook.
 ---
 
 ```{r setup, include=FALSE}
@@ -23,10 +24,17 @@ knitr::opts_chunk$set(eval = TRUE,
 
 ```
 
+## Introduction
 
->> We use the same data, but in this case, we want to fit the demand of multiple brand as a function of the price of each one of them, i.e. fit the matrix of cross price elasticities. It can be done, by simply setting as $Y$ to be the vector of demands and $T$ to be the vector of prices. Then we can obtain the matrix of cross price elasticities.
+An excerpt from ["Double Machine Learning: Use Cases and Examples"](https://github.com/microsoft/EconML/blob/master/notebooks/Double%20Machine%20Learning%20Examples.ipynb) EconML notebook: 
 
+>_"We use the same data, but in this case, we want to fit the demand of multiple brand as a function of the price of each one of them, i.e. fit the matrix of cross price elasticities. It can be done, by simply setting as $Y$ to be the vector of demands and $T$ to be the vector of prices. Then we can obtain the matrix of cross price elasticities."_
 
+(See [previous note](https://raw.githack.com/itamarcaspi/EconML-with-R/master/single.html) for context.)
+
+## Packages
+
+Load `reticulate and set up a virtual Python environment
 ```{r}
 
 library(reticulate)
@@ -34,19 +42,20 @@ use_virtualenv("myenv")
 
 ```
 
-
+Load other requierd packages
 ```{r}
 
-library(tidymodels)
-library(tidyverse)
-library(glue)
-library(here)
+library(tidyverse) # for data wrangling and visualization
+library(recipes)   # for data preprocessing
+library(here)      # for file referencing
+library(glue)      # for pasting strings
 
 ```
 
 
 ## Data
 
+Load the orange juice dataset
 ```{r}
 
 # Read from file
@@ -60,6 +69,8 @@ head(oj_raw)
 ```
 
 
+## Preprocessing
+
 ```{r}
 
 stores <- oj_raw %>% 
@@ -71,6 +82,8 @@ oj <- oj_raw %>%
   select(store, week, brand, logmove, price) %>% 
   pivot_wider(names_from = brand, values_from = c(logmove, price)) %>% 
   left_join(stores)
+
+head(oj)
 ```
 
 
@@ -112,6 +125,20 @@ W <- oj_rec %>%
   unname()
 ```
 
+Generate test data
+```{r}
+
+min_income <- -1
+max_income <- 1
+delta      <- (max_income - min_income) / 100
+
+X_test <- seq(max_income, min_income, -delta) %>%
+  as.matrix()
+
+```
+
+## Estimate CATE
+
 
 ```{python}
 
@@ -134,9 +161,7 @@ te_pred = est.const_marginal_effect(r.X_test)
 
 ```{r}
 
-library(glue)
-
-brands <- oj %>% 
+brands <- oj_raw %>% 
   distinct(brand) %>% 
   pull()
 
@@ -171,9 +196,10 @@ cate_effect_long %>%
 
 ```
 
-Look at the diagonal of the matrix, the TE of OJ prices are always negative to the sales across all the brand, but people with higher income are less price-sensitive. By contrast, for the non-diagonal of the matrix, the TE of prices for other brands are always positive to the sales for that brand, the TE is affected by income in different ways for different competitors. In addition, compare to previous plot, the negative TE of OJ prices for each brand are all larger than the TE considering all brand together, which means we would have underestimated the effect of price changes on demand.
+>_"Look at the diagonal of the matrix, the TE of OJ prices are always negative to the sales across all the brand, but people with higher income are less price-sensitive. By contrast, for the non-diagonal of the matrix, the TE of prices for other brands are always positive to the sales for that brand, the TE is affected by income in different ways for different competitors. In addition, compare to previous plot, the negative TE of OJ prices for each brand are all larger than the TE considering all brand together, which means we would have underestimated the effect of price changes on demand."_
 
 ## Bootstrap Confidence Intervals
+
 
 ```{python}
 
@@ -188,9 +214,8 @@ te_pred_interval = boot_est.const_marginal_effect_interval(r.X_test, lower=1, up
 ```
 
 
-
+Transform the `te_pred_interval` Python object (a 3D array) to a tibble that we can work with
 ```{r}
-
 cate_effect_interval <- tibble("Xtest" = X_test)
 
 for (i in 1:length(brands)) {
@@ -205,6 +230,12 @@ for (i in 1:length(brands)) {
   }
 }
 
+head(cate_effect_interval)
+```
+
+
+Reshape the intervals data to a "long" format
+```{r}
 cate_effect_interval_long <- cate_effect_interval %>% 
   pivot_longer(
     -Xtest,
@@ -215,9 +246,10 @@ cate_effect_interval_long <- cate_effect_interval %>%
   bind_rows(cate_effect_long) %>% 
   pivot_wider(names_from = "estimate", values_from = "value")
 
+head(cate_effect_interval_long)
 ```
 
-
+Now that the dataset is long, we can easily plot our results
 ```{r}
 
 cate_effect_interval_long %>% 
