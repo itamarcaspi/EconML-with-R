@@ -24,11 +24,7 @@ knitr::opts_chunk$set(eval = TRUE,
 ```
 
 
-We applied our technique to Dominick’s dataset, a popular historical dataset of store-level orange juice prices and sales provided by University of Chicago Booth School of Business.
-
-The dataset is comprised of a large number of covariates $W$, but researchers might only be interested in learning the elasticity of demand as a function of a few variables $x$ such as income or education.
-
-We applied the DMLCateEstimator to estimate orange juice price elasticity as a function of income, and our results, unveil the natural phenomenon that lower income consumers are more price-sensitive.
+>> We use the same data, but in this case, we want to fit the demand of multiple brand as a function of the price of each one of them, i.e. fit the matrix of cross price elasticities. It can be done, by simply setting as $Y$ to be the vector of demands and $T$ to be the vector of prices. Then we can obtain the matrix of cross price elasticities.
 
 
 ```{r}
