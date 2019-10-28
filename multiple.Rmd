@@ -1,0 +1,242 @@
+---
+title: "Example Usage with Multiple Continuous Treatment, Multiple Outcome Observational Data"
+author:
+- "Itamar Caspi"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    highlight: haddock
+    theme: journal
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+abstract: |
+  TBA
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(eval = TRUE,
+                      echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE)
+
+```
+
+
+We applied our technique to Dominick’s dataset, a popular historical dataset of store-level orange juice prices and sales provided by University of Chicago Booth School of Business.
+
+The dataset is comprised of a large number of covariates $W$, but researchers might only be interested in learning the elasticity of demand as a function of a few variables $x$ such as income or education.
+
+We applied the DMLCateEstimator to estimate orange juice price elasticity as a function of income, and our results, unveil the natural phenomenon that lower income consumers are more price-sensitive.
+
+
+```{r}
+
+library(reticulate)
+use_virtualenv("myenv")
+
+```
+
+
+```{r}
+
+library(tidymodels)
+library(tidyverse)
+library(glue)
+library(here)
+
+```
+
+
+## Data
+
+```{r}
+
+# Read from file
+oj_raw <- read_csv(here("data", "oj_large.csv"))
+
+# Alternatively, read from the web
+# oj_raw <- read_csv("https://msalicedatapublic.blob.core.windows.net/datasets/OrangeJuice/oj_large.csv")
+
+head(oj_raw)
+
+```
+
+
+```{r}
+
+stores <- oj_raw %>% 
+  select(store, AGE60:CPWVOL5) %>% 
+  group_by(store) %>% 
+  summarise_all(.funs = ~ mean(.))
+
+oj <- oj_raw %>% 
+  select(store, week, brand, logmove, price) %>% 
+  pivot_wider(names_from = brand, values_from = c(logmove, price)) %>% 
+  left_join(stores)
+```
+
+
+```{r}
+
+oj_rec <- recipe( ~ ., data = oj) %>% 
+  step_normalize(
+    INCOME, AGE60, EDUC, ETHNIC, INCOME,
+    HHLARGE, WORKWOM, HVAL150, SSTRDIST,
+    SSTRVOL, CPDIST5, CPWVOL5
+  ) %>% 
+  step_log(starts_with("price")) %>% 
+  prep() %>% 
+  juice()
+
+```
+
+
+```{r}
+
+Y <- oj_rec %>%
+  select(starts_with("logmove")) %>%
+  as.matrix() %>% 
+  unname()
+  
+D <- oj_rec %>%
+  select(starts_with("price")) %>%
+  as.matrix() %>% 
+  unname()
+
+X <- oj_rec %>%
+  select(INCOME) %>%
+  as.matrix() %>% 
+  unname()
+
+W <- oj_rec %>%
+  select(AGE60:CPWVOL5, -INCOME) %>%
+  as.matrix() %>% 
+  unname()
+```
+
+
+```{python}
+
+from econml.dml import DMLCateEstimator 
+from sklearn.linear_model import MultiTaskElasticNetCV
+
+```
+
+
+```{python}
+
+est = DMLCateEstimator(model_y=MultiTaskElasticNetCV(cv=3),model_t=MultiTaskElasticNetCV(cv=3))
+
+est.fit(r.Y, r.D, r.X, r.W)
+
+te_pred = est.const_marginal_effect(r.X_test)
+
+```
+
+
+```{r}
+
+library(glue)
+
+brands <- oj %>% 
+  distinct(brand) %>% 
+  pull()
+
+cate_effect <- tibble("Xtest" = X_test)
+
+for (i in 1:length(brands)) {
+  for (j in 1:length(brands)) {
+    elas_val = tibble(py$te_pred[ , i, j])
+    names(elas_val) <- glue("{brands[i]}_{brands[j]}_mid")
+    cate_effect <- bind_cols(cate_effect, elas_val)
+  }
+}
+
+cate_effect_long <- cate_effect %>% 
+  pivot_longer(
+    -Xtest,
+    names_to  = c("cross_product", "product", "estimate"),
+    names_sep = "_",
+    values_to = "value"
+  ) 
+
+cate_effect_long %>% 
+  ggplot(aes(Xtest, value)) +
+  geom_line() +
+  facet_wrap( ~ product + cross_product, scales = "free") +
+  labs(
+    x = "Scale(Income)",
+    y = "Orange Juice Elasticity",
+    title = "Orange Juice Elasticity vs Income"
+  )
+  
+
+```
+
+Look at the diagonal of the matrix, the TE of OJ prices are always negative to the sales across all the brand, but people with higher income are less price-sensitive. By contrast, for the non-diagonal of the matrix, the TE of prices for other brands are always positive to the sales for that brand, the TE is affected by income in different ways for different competitors. In addition, compare to previous plot, the negative TE of OJ prices for each brand are all larger than the TE considering all brand together, which means we would have underestimated the effect of price changes on demand.
+
+## Bootstrap Confidence Intervals
+
+```{python}
+
+from econml.bootstrap import BootstrapEstimator
+
+boot_est=BootstrapEstimator(DMLCateEstimator(model_y=MultiTaskElasticNetCV(cv=3),model_t=MultiTaskElasticNetCV(cv=3)),n_bootstrap_samples=20)
+
+boot_est.fit(r.Y,r.D,r.X,r.W)
+
+te_pred_interval = boot_est.const_marginal_effect_interval(r.X_test, lower=1, upper=99)
+
+```
+
+
+
+```{r}
+
+cate_effect_interval <- tibble("Xtest" = X_test)
+
+for (i in 1:length(brands)) {
+  for (j in 1:length(brands)) {
+    elas_up   <- tibble(py$te_pred_interval[[1]][ , i, j])
+    elas_down <- tibble(py$te_pred_interval[[2]][ , i, j])
+    names(elas_up)   <- glue("{brands[i]}_{brands[j]}_up")
+    names(elas_down) <- glue("{brands[i]}_{brands[j]}_down")
+    cate_effect_interval <- bind_cols(cate_effect_interval,
+                                           elas_up,
+                                           elas_down)
+  }
+}
+
+cate_effect_interval_long <- cate_effect_interval %>% 
+  pivot_longer(
+    -Xtest,
+    names_to  = c("cross_product", "product", "estimate"),
+    names_sep = "_",
+    values_to = "value"
+  ) %>%
+  bind_rows(cate_effect_long) %>% 
+  pivot_wider(names_from = "estimate", values_from = "value")
+
+```
+
+
+```{r}
+
+cate_effect_interval_long %>% 
+  ggplot(aes(Xtest, mid)) +
+  geom_ribbon(aes(ymin = down, ymax = up),
+              fill = "grey70") +
+  geom_line() +
+  facet_wrap( ~ product + cross_product, scales = "free") +
+  labs(
+    x = "Scale(Income)",
+    y = "Orange Juice Elasticity",
+    title = "Orange Juice Elasticity vs Income"
+  )
+  
+
+```
+
+

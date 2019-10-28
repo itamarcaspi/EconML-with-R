@@ -1,0 +1,202 @@
+---
+title: "Example Usage with Single Continuous Treatment Observational Data"
+author:
+- "Itamar Caspi"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    highlight: haddock
+    theme: journal
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+abstract: |
+  TBA
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(eval = TRUE,
+                      echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE)
+
+```
+
+
+We applied our technique to Dominick’s dataset, a popular historical dataset of store-level orange juice prices and sales provided by University of Chicago Booth School of Business.
+
+The dataset is comprised of a large number of covariates $W$, but researchers might only be interested in learning the elasticity of demand as a function of a few variables $x$ such as income or education.
+
+We applied the DMLCateEstimator to estimate orange juice price elasticity as a function of income, and our results, unveil the natural phenomenon that lower income consumers are more price-sensitive.
+
+## Packages
+
+```{r}
+
+library(reticulate)
+use_virtualenv("myenv")
+
+```
+
+
+```{r}
+
+library(tidymodels)
+library(tidyverse)
+library(here)
+
+```
+
+
+## Data
+
+```{r}
+
+# Read from file
+oj_raw <- read_csv(here("data", "oj_large.csv"))
+
+# Alternatively, read from the web
+# oj_raw <- read_csv("https://msalicedatapublic.blob.core.windows.net/datasets/OrangeJuice/oj_large.csv")
+
+head(oj_raw)
+
+```
+
+
+# Preprocessing
+
+```{r}
+
+oj_rec <- recipe(logmove ~ ., data = oj_raw) %>% 
+  step_normalize(
+    INCOME, AGE60, EDUC, ETHNIC, INCOME,
+    HHLARGE, WORKWOM, HVAL150, SSTRDIST,
+    SSTRVOL, CPDIST5, CPWVOL5
+  ) %>% 
+  step_dummy(brand, one_hot = TRUE) %>% 
+  step_log(price) %>% 
+  prep() %>% 
+  juice()
+
+```
+
+
+```{r}
+
+Y <- oj_rec %>%
+  pull(logmove) %>%
+  as.array() %>% 
+  unname()
+  
+D <- oj_rec %>%
+  pull(price) %>%
+  as.array() %>% 
+  unname()
+
+X <- oj_rec %>%
+  select(INCOME) %>%
+  as.matrix() %>% 
+  unname()
+
+W <- oj_rec %>%
+  select(AGE60:CPWVOL5, starts_with("brand")) %>%
+  as.matrix() %>% 
+  unname()
+```
+
+Generate testdata
+```{r}
+
+min_income <- -1
+max_income <- 1
+delta      <- (max_income - min_income) / 100
+
+X_test <- seq(max_income, min_income, -delta) %>%
+  as.matrix()
+
+```
+
+
+# Estimate effect
+
+```{python}
+
+from econml.dml import DMLCateEstimator 
+from sklearn.ensemble import RandomForestRegressor,RandomForestClassifier
+
+```
+
+
+```{python}
+
+est = DMLCateEstimator(model_y=RandomForestRegressor(),model_t=RandomForestRegressor())
+
+est.fit(r.Y, r.D, r.X, r.W)
+
+te_pred = est.effect(r.X_test)
+
+```
+
+Plot oranje Juice elasticity as a function of income
+```{r}
+
+cate_effect <- tibble("X_test" = X_test, "te_pred" = py$te_pred)
+
+cate_effect %>% 
+  ggplot(aes(X_test, te_pred)) +
+  geom_line() +
+  labs(x = "Scale(Income)",
+       y = "Orange Juice Elasticity",
+       title = "Orange Juice Elasticity vs Income")
+
+```
+
+
+## Bootstrap Confidence Intervals
+
+
+```{python}
+
+from econml.bootstrap import BootstrapEstimator
+
+```
+
+
+```{python}
+
+boot_est = BootstrapEstimator(DMLCateEstimator(model_y=RandomForestRegressor(),model_t=RandomForestRegressor()),n_bootstrap_samples=20) 
+
+boot_est.fit(r.Y, r.D, r.X, r.W)
+
+te_pred_interval = boot_est.const_marginal_effect_interval(r.X_test, lower=1, upper=99)
+
+```
+
+
+
+```{r}
+
+cate_effect_interval <- cate_effect %>% 
+  mutate(
+    te_pred_down = py$te_pred_interval[[1]],
+    te_pred_up   = py$te_pred_interval[[2]]
+  )
+
+head(cate_effect_interval)
+```
+
+
+```{r}
+
+cate_effect_interval %>% 
+  ggplot(aes(X_test, te_pred)) +
+  geom_ribbon(aes(ymin = te_pred_down, ymax = te_pred_up),
+              fill = "grey70") +
+  geom_line() +
+  labs(x = "Scale(Income)",
+       y = "Orange Juice Elasticity",
+       title = "Orange Juice Elasticity vs Income",
+       fill  = "1-99% CI")
+
+```
