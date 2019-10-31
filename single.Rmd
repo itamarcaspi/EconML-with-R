@@ -24,7 +24,9 @@ knitr::opts_chunk$set(eval = TRUE,
 
 ```
 
-## Introction
+__NOTE__ In order to run this tutorial, make sure you've pre-installed a Python environment, as well as the [`econml`](https://github.com/microsoft/EconML#installation) and [`sklearn`](https://scikit-learn.org/stable/install.html) Python packages.
+
+## Introduction
 
 An excerpt from ["Double Machine Learning: Use Cases and Examples"](https://github.com/microsoft/EconML/blob/master/notebooks/Double%20Machine%20Learning%20Examples.ipynb) EconML notebook: 
 
@@ -32,7 +34,7 @@ An excerpt from ["Double Machine Learning: Use Cases and Examples"](https://gith
 
 ## Packages
 
-Load `reticulate and set up a virtual Python environment
+Load `reticulate` and set up a virtual Python environment
 ```{r}
 
 library(reticulate)
@@ -40,7 +42,7 @@ use_virtualenv("myenv")
 
 ```
 
-Load other requierd packages
+Load other required packages
 ```{r}
 
 library(tidyverse) # for data wrangling and visualization
@@ -124,6 +126,7 @@ X_test <- seq(max_income, min_income, -delta) %>%
 
 ## Estimate CATE
 
+Here is where the magic happens. The following two code chunks are written in Python. The firs chunk imports the necessary libraries - `econml` for estimating HTE and `sklearn`, a ML modeling and preprocessing tool.
 ```{python}
 
 from econml.dml import DMLCateEstimator 
@@ -131,7 +134,7 @@ from sklearn.ensemble import RandomForestRegressor,RandomForestClassifier
 
 ```
 
-
+This is where the estimation takes place. Note that referring to R objects while in Python is done using the `r.` prefix. For example, `r.Y` returns R's `Y` object in Python.
 ```{python}
 
 est = DMLCateEstimator(model_y=RandomForestRegressor(),model_t=RandomForestRegressor())
@@ -141,6 +144,8 @@ est.fit(r.Y, r.D, r.X, r.W)
 te_pred = est.effect(r.X_test)
 
 ```
+
+And now, back to R. Note that referring to python objects while in R is done using the `py$` prefix. For example, `py$te_pred` returns python's `te_pred` object in R.
 
 Plot orange Juice elasticity as a function of income
 ```{r}

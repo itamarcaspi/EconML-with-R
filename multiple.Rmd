@@ -24,6 +24,8 @@ knitr::opts_chunk$set(eval = TRUE,
 
 ```
 
+__NOTE__ In order to run this tutorial, make sure you've pre-installed a Python environment, as well as the [`econml`](https://github.com/microsoft/EconML#installation) and [`sklearn`](https://scikit-learn.org/stable/install.html) Python packages.
+
 ## Introduction
 
 An excerpt from ["Double Machine Learning: Use Cases and Examples"](https://github.com/microsoft/EconML/blob/master/notebooks/Double%20Machine%20Learning%20Examples.ipynb) EconML notebook: 
@@ -42,7 +44,7 @@ use_virtualenv("myenv")
 
 ```
 
-Load other requierd packages
+Load other required packages
 ```{r}
 
 library(tidyverse) # for data wrangling and visualization
@@ -139,7 +141,7 @@ X_test <- seq(max_income, min_income, -delta) %>%
 
 ## Estimate CATE
 
-
+Here is where the magic happens. The following two code chunks are written in Python. The firs chunk imports the necessary libraries - `econml` for estimating HTE and `sklearn`, a ML modeling and preprocessing tool.
 ```{python}
 
 from econml.dml import DMLCateEstimator 
@@ -147,7 +149,7 @@ from sklearn.linear_model import MultiTaskElasticNetCV
 
 ```
 
-
+This is where the estimation takes place. Note that referring to R objects while in Python is done using the `r.` prefix. For example, `r.Y` returns R's `Y` object in Python.
 ```{python}
 
 est = DMLCateEstimator(model_y=MultiTaskElasticNetCV(cv=3),model_t=MultiTaskElasticNetCV(cv=3))
@@ -158,9 +160,10 @@ te_pred = est.const_marginal_effect(r.X_test)
 
 ```
 
+And now, back to R. Note that referring to python objects while in R is done using the `py$` prefix. For example, `py$te_pred` returns python's `te_pred` object in R.
 
+Tidy `econml`'s output 
 ```{r}
-
 brands <- oj_raw %>% 
   distinct(brand) %>% 
   pull()
@@ -181,8 +184,11 @@ cate_effect_long <- cate_effect %>%
     names_to  = c("cross_product", "product", "estimate"),
     names_sep = "_",
     values_to = "value"
-  ) 
+  )
+```
 
+Plot orange Juice elasticity as a function of income
+```{r}
 cate_effect_long %>% 
   ggplot(aes(Xtest, value)) +
   geom_line() +
