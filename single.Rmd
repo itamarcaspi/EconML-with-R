@@ -1,5 +1,5 @@
 ---
-title: "EconML with R"
+title: "EconML with R in the Tidyverse"
 subtitle: "Example Usage with Single Continuous Treatment Observational Data"
 author:
 - "Itamar Caspi"
@@ -11,8 +11,9 @@ output:
     toc: yes
     toc_depth: 4
     toc_float: yes
+    code_download: true
 abstract: |
-  [`EconML`](https://github.com/microsoft/EconML) is a Python package for estimating heterogeneous treatment effects from observational data via machine learning. In this note you I show how to call EconML from R using the [`reticulate`](https://rstudio.github.io/reticulate/index.html) package. To this end, I reproduce an example for usage with single continuous treatment observational data that appear in the ["Double Machine Learning: Use Cases and Examples"](https://github.com/microsoft/EconML/blob/master/notebooks/Double%20Machine%20Learning%20Examples.ipynb) EconML notebook.
+  [`EconML`](https://github.com/microsoft/EconML) is a Python package for estimating heterogeneous treatment effects from observational data via machine learning. In this note you I show how to call EconML from R using the [`reticulate`](https://rstudio.github.io/reticulate/index.html) package. To this end, I reproduce an example for usage with single continuous treatment observational data that appear in the ["Double Machine Learning: Use Cases and Examples"](https://github.com/microsoft/EconML/blob/master/notebooks/Double%20Machine%20Learning%20Examples.ipynb) EconML notebook. The code adheres as closely as possible to the [Tidyverse](https://www.tidyverse.org) [principles](https://principles.tidyverse.org) and [style](https://style.tidyverse.org).
 ---
 
 ```{r setup, include=FALSE}
