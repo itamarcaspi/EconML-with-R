@@ -127,7 +127,7 @@ X_test <- seq(max_income, min_income, -delta) %>%
 
 ## Estimate CATE
 
-Here is where the magic happens. The following two code chunks are written in Python. The firs chunk imports the necessary libraries - `econml` for estimating HTE and `sklearn`, a ML modeling and preprocessing tool.
+Here is where the magic happens. The following two code chunks are written in Python. The first code chunk imports the necessary libraries - `econml` for estimating HTE and `sklearn`, a ML modeling and preprocessing tool.
 ```{python}
 
 from econml.dml import DMLCateEstimator 
