@@ -1,6 +1,6 @@
 ## `EconML` with R and the `reticulate` package
 
-[`EconML`](https://github.com/microsoft/EconML) is a Python package for estimating heterogeneous treatment effects from observational data via machine learning. In this repo you will learn how to call [`EconML`](https://github.com/microsoft/EconML) from R using the [`reticulate`](https://rstudio.github.io/reticulate/index.html) R package. 
+[`EconML`](https://github.com/microsoft/EconML) is a Python package for estimating heterogeneous treatment effects from observational data via machine learning. In this repo you will learn how to call [`EconML`](https://github.com/microsoft/EconML) from R using the [`reticulate`](https://rstudio.github.io/reticulate/index.html) R package. The code adheres as closely as possible to the [Tidyverse](https://www.tidyverse.org) [principles](https://principles.tidyverse.org) and [style](https://style.tidyverse.org).
 
 To this end, I reproduce two examples that appear in the ["Double Machine Learning: Use Cases and Examples"](https://github.com/microsoft/EconML/blob/master/notebooks/Double%20Machine%20Learning%20Examples.ipynb) EconML notebook:
 
